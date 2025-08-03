@@ -43,10 +43,14 @@ def p_place_boat(board, ship_name, ship_length, ship_symbol):
 
         if direction == "H":
             y_letter = input("Enter a letter from A-J for the row: ").strip().upper()
-            x_start = input(f"Enter the *first* column (1-10) for your {ship_name}: ")
-            x_end = input(f"Enter the *last* column (1-10) for your {ship_name}: ")
+            try:
+                x_start = int(input(f"Enter the *first* column (1-10) for your {ship_name}: "))
+                x_end = int(input(f"Enter the *last* column (1-10) for your {ship_name}: "))
+            except ValueError:
+                print("Invalid column numbers. Please enter numbers from 1 to 10.")
+                continue
 
-            if y_letter in letter_to_index and x_start.isdigit() and x_end.isdigit():
+            if y_letter in letter_to_index and 1 <= x_start <= 10 and 1 <= x_end <= 10:
                 y = letter_to_index[y_letter]
                 x1 = min(int(x_start), int(x_end)) - 1
                 x2 = max(int(x_start), int(x_end)) - 1
@@ -64,11 +68,20 @@ def p_place_boat(board, ship_name, ship_length, ship_symbol):
                 print("Invalid input format.")
 
         elif direction == "V":
-            x_input = input("Enter the column number from 1-10: ")
+            try:
+                x_input = int(input("Enter the column number from 1-10: "))
+            except ValueError:
+                print("Invalid column number.")
+                continue
+
+            if not (1 <= x_input <= 10):
+                print("Column must be from 1 to 10.")
+                continue
+
             y_start = input(f"Enter the *first* row letter (A-J) for your {ship_name}: ").strip().upper()
             y_end = input(f"Enter the *last* row letter (A-J) for your {ship_name}: ").strip().upper()
 
-            if x_input.isdigit() and y_start in letter_to_index and y_end in letter_to_index:
+            if y_start in letter_to_index and y_end in letter_to_index:
                 x = int(x_input) - 1
                 y1 = min(letter_to_index[y_start], letter_to_index[y_end])
                 y2 = max(letter_to_index[y_start], letter_to_index[y_end])
@@ -113,35 +126,59 @@ for name, size in fleet:
     code = name_to_code[name]
     c_place_boat(c_board, size, code)
 
-"""
 print_board(p_board)
 for name, size in fleet:
     code = name_to_code[name]
     p_place_boat(p_board, name, size, code)
+    print_board(p_board)
 
 print("\nYour ship placements:")
 print_board(p_board)
-"""
-
-print("\nComputer ship placements:")
-print_board(c_board)
 
 def get_target_coordinates():
-    target_x = int(input("Enter the x coordinate of the target location (1-10): "))
-    while target_x < 1 or target_x > 10:
-        print("Invalid input.")
-        target_x = int(input("Enter the x coordinate of the target location (1-10): "))
+    while True:
+        try:
+            target_x = int(input("Enter the x coordinate of the target location (1-10): "))
+            if 1 <= target_x <= 10:
+                break
+            else:
+                print("Input must be between 1 and 10.")
+        except ValueError:
+            print("Invalid input. Please enter a number between 1 and 10.")
 
-    target_y = input("Enter the y coordinate of the target location (A-J): ").strip().upper()
-    while target_y not in "ABCDEFGHIJ":
-        print("Invalid input.")
+    while True:
         target_y = input("Enter the y coordinate of the target location (A-J): ").strip().upper()
+        if target_y in "ABCDEFGHIJ":
+            break
+        else:
+            print("Invalid input. Please enter a letter from A to J.")
 
     return target_x - 1, ord(target_y) - 65
+
+def get_ai_move():
+    # If we have targets from a hit, try those first
+    while ai_targets:
+        tx, ty = ai_targets.pop()
+        if 0 <= tx < 10 and 0 <= ty < 10 and (tx, ty) not in ai_tried:
+            ai_tried.add((tx, ty))
+            return tx, ty
+
+    # Otherwise, pick random coordinate
+    while True:
+        tx = random.randint(0, 9)
+        ty = random.randint(0, 9)
+        if (tx, ty) not in ai_tried:
+            ai_tried.add((tx, ty))
+            return tx, ty
 
 # Begin
 game_board = [["_" for _ in range(10)] for _ in range(10)]
 c_ship_health = {"Ca": 5, "B": 4, "S": 3, "Cr": 3, "D": 2}
+p_ship_health = {"Ca": 5, "B": 4, "S": 3, "Cr": 3, "D": 2}
+
+ai_targets = []
+ai_tried = set()
+
 player_turn = True
 game_over = False
 
@@ -172,4 +209,29 @@ while not game_over:
             print("Congratulations! You sank all the computer's ships!")
             game_over = True
 
-        #player_turn = False
+        player_turn = not player_turn
+    else:
+        tx, ty = get_ai_move()
+
+        if p_board[ty][tx] != "_":
+            ship = p_board[ty][tx]
+            p_ship_health[ship] -= 1
+            p_board[ty][tx] = "H"
+
+            # Add surrounding positions
+            ai_targets.extend([
+                (tx + 1, ty), (tx - 1, ty),
+                (tx, ty + 1), (tx, ty - 1)
+            ])
+        else:
+            p_board[ty][tx] = "M"
+
+        if all(health == 0 for health in p_ship_health.values()):
+            print("The computer sank all your ships. You lose.")
+
+            print("Computer board:")
+            print_board(c_board)
+
+            game_over = True
+
+        player_turn = not player_turn
